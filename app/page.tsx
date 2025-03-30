@@ -11,9 +11,9 @@ export default function Home() {
         <WalletStatus />
         <WalletConnect />
       </div>
-      <div className="mb-6">
+      {/* <div className="mb-6">
         <TransactionHistory />
-      </div>
+      </div> */}
       <TaskDashboard />
     </MainLayout>
   );
