@@ -1,16 +1,16 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr"; // Keep for type if needed
 import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { Task } from "@/types/task";
 import { createClient } from "@/lib/supabase/server"; // Use the corrected server client
 
 // PUT handler - Update an existing task
 export async function PUT(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient();
-  const taskId = params.id;
+  const { id: taskId } = await params;
 
   try {
     const {
@@ -89,11 +89,11 @@ export async function PUT(
 
 // DELETE handler - Delete a task
 export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient();
-  const taskId = params.id;
+  const { id: taskId } = await params;
 
   try {
     const {
