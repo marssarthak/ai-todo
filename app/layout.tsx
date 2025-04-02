@@ -47,12 +47,6 @@ export default function RootLayout({
                 </main>
                 <Toaster />
               </div>
-              {process.env.NODE_ENV === "development" && (
-                <>
-                  {/* <LocalStorageDebug /> */}
-                  <AiTestComponent />
-                </>
-              )}
             </ThemeProvider>
           </AuthProvider>
         </PrivyProviderWrapper>

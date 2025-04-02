@@ -13,7 +13,7 @@ const nextConfig = {
   },
 
   // Enable SWC minification
-  swcMinify: true,
+  // swcMinify: true,
 
   // Enable App Directory static features
   experimental: {
