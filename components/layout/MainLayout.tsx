@@ -49,12 +49,20 @@ export default function MainLayout({
       </Link>
       {/* Add other primary nav links here if needed */}
       {user && (
-        <Link
-          href="/profile"
-          className="text-muted-foreground transition-colors hover:text-foreground"
-        >
-          Profile
-        </Link>
+        <>
+          <Link
+            href="/profile"
+            className="text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Profile
+          </Link>
+          <Link
+            href="/verification"
+            className="text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Verification History
+          </Link>
+        </>
       )}
     </>
   );
@@ -125,6 +133,12 @@ export default function MainLayout({
                   onClick={() => router.push("/profile")}
                 >
                   Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  onClick={() => router.push("/verification")}
+                >
+                  Verification History
                 </DropdownMenuItem>
                 {/* Add Settings link if needed */}
                 {/* <DropdownMenuItem>Settings</DropdownMenuItem> */}

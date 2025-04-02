@@ -20,7 +20,10 @@ import {
   CalendarIcon,
   AlertTriangle,
   Loader2,
+  ShieldCheckIcon,
 } from "lucide-react";
+import { VerificationStatus } from "@/components/blockchain/VerificationStatus";
+import { retryVerification, verifyTask } from "@/services/VerificationService";
 
 interface TaskCardProps {
   task: Task;
@@ -51,6 +54,23 @@ export function TaskCard({
 }: TaskCardProps) {
   const isOverdue =
     task.deadline && isPast(task.deadline) && task.status !== "completed";
+
+  // Handle verification of a completed task
+  const handleVerify = async () => {
+    if (task.status === "completed") {
+      await verifyTask(task);
+    }
+  };
+
+  // Handle retry for failed verification
+  const handleRetryVerification = async () => {
+    await retryVerification(task);
+  };
+
+  // Determine if we should show verification options
+  const showVerification = task.status === "completed";
+  const isVerified = task.metadata?.verified;
+  const verificationFailed = task.metadata?.verificationStatus === "failed";
 
   return (
     <Card
@@ -86,15 +106,20 @@ export function TaskCard({
         )}
       </CardHeader>
       <CardContent className="flex-grow py-3 space-y-2">
-        <div className="flex items-center text-xs text-muted-foreground">
-          <span
-            className={cn("inline-block w-2 h-2 rounded-full mr-1.5", {
-              "bg-gray-400": task.status === "todo",
-              "bg-yellow-400": task.status === "in-progress",
-              "bg-green-500": task.status === "completed",
-            })}
-          ></span>
-          {statusText[task.status]}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center text-xs text-muted-foreground">
+            <span
+              className={cn("inline-block w-2 h-2 rounded-full mr-1.5", {
+                "bg-gray-400": task.status === "todo",
+                "bg-yellow-400": task.status === "in-progress",
+                "bg-green-500": task.status === "completed",
+              })}
+            ></span>
+            {statusText[task.status]}
+          </div>
+
+          {/* Show verification status if task is completed */}
+          {showVerification && <VerificationStatus task={task} size="sm" />}
         </div>
         {task.deadline && (
           <div
@@ -137,6 +162,22 @@ export function TaskCard({
         </div>
 
         <div className="flex items-center space-x-1">
+          {/* Verification Button */}
+          {showVerification && !isVerified && !isLoading && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 flex items-center text-xs"
+              onClick={
+                verificationFailed ? handleRetryVerification : handleVerify
+              }
+              disabled={task.metadata?.verificationStatus === "pending"}
+            >
+              <ShieldCheckIcon className="h-3 w-3 mr-1" />
+              {verificationFailed ? "Retry Verify" : "Verify"}
+            </Button>
+          )}
+
           <Button
             variant="ghost"
             size="icon"
