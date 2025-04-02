@@ -3,10 +3,16 @@
 import React from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { Button } from "@/components/ui/button";
-import { LogOut, Copy, Check } from "lucide-react";
-import { useCopyToClipboard } from "@/hooks/useCopyToClipboard"; // Assuming a copy hook exists
+import { LogOut, Copy, Check, Wallet } from "lucide-react";
+import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { polygon, polygonAmoy } from "viem/chains";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export function WalletStatus() {
   const { ready, authenticated, user, logout } = usePrivy();
@@ -24,9 +30,8 @@ export function WalletStatus() {
   // Handle loading state
   if (!ready) {
     return (
-      <div className="flex items-center space-x-3">
-        <Skeleton className="h-8 w-32 rounded-md" />
-        <Skeleton className="h-8 w-20 rounded-md" />
+      <div className="mr-1">
+        <Skeleton className="h-8 w-24 rounded-md" />
       </div>
     );
   }
@@ -47,36 +52,49 @@ export function WalletStatus() {
         : "Unknown Network";
 
     return (
-      <div className="flex items-center space-x-3 bg-muted p-2 rounded-lg">
-        <div className="flex items-center space-x-2 text-sm">
-          <span>{displayAddress}</span>
+      <TooltipProvider>
+        <div className="flex items-center mr-1 bg-muted/70 hover:bg-muted transition-colors rounded-lg border border-border/50">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center px-2 py-1.5">
+                <Wallet className="h-3.5 w-3.5 mr-1.5 text-primary" />
+                <span className="text-xs font-medium">{displayAddress}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => copyToClipboard(connectedWallet.address)}
+                  aria-label="Copy address"
+                  className="h-5 w-5 ml-0.5 hover:bg-background/80"
+                >
+                  {copied ? (
+                    <Check className="h-3 w-3 text-green-500" />
+                  ) : (
+                    <Copy className="h-3 w-3" />
+                  )}
+                </Button>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <div className="flex flex-col text-xs">
+                <span>Connected to {chainName}</span>
+                <span className="text-muted-foreground">
+                  {connectedWallet.address}
+                </span>
+              </div>
+            </TooltipContent>
+          </Tooltip>
+          <div className="h-5 mx-0.5 border-r border-border/50"></div>
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => copyToClipboard(connectedWallet.address)}
-            aria-label="Copy address"
-            className="h-6 w-6"
+            onClick={logout}
+            aria-label="Disconnect wallet"
+            className="h-full rounded-l-none px-1.5"
           >
-            {copied ? (
-              <Check className="h-3 w-3 text-green-500" />
-            ) : (
-              <Copy className="h-3 w-3" />
-            )}
+            <LogOut className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
           </Button>
         </div>
-        <span className="text-xs px-2 py-0.5 rounded bg-background">
-          {chainName}
-        </span>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={logout}
-          aria-label="Logout"
-          className="h-6 w-6"
-        >
-          <LogOut className="h-4 w-4" />
-        </Button>
-      </div>
+      </TooltipProvider>
     );
   }
 

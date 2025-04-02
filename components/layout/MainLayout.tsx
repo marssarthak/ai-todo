@@ -1,15 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { Menu, LogOut, User as UserIcon, Loader2 } from "lucide-react"; // Add icons
+import {
+  Menu,
+  LogOut,
+  User as UserIcon,
+  Loader2,
+  LayoutDashboard,
+  UserCircle,
+  FileCheck,
+  Wallet,
+  ExternalLink,
+  Sparkles,
+} from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
   SheetHeader,
-  SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
 import React from "react";
@@ -23,6 +32,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useRouter } from "next/navigation";
+import { WalletConnect } from "@/components/blockchain/WalletConnect";
+import { WalletStatus } from "@/components/blockchain/WalletStatus";
 
 export default function MainLayout({
   children,
@@ -41,26 +52,21 @@ export default function MainLayout({
   // Consistent Nav Links for Desktop and Mobile
   const navLinks = (
     <>
-      <Link
-        href="/"
-        className="text-muted-foreground transition-colors hover:text-foreground"
-      >
-        Dashboard
-      </Link>
-      {/* Add other primary nav links here if needed */}
       {user && (
         <>
           <Link
             href="/profile"
-            className="text-muted-foreground transition-colors hover:text-foreground"
+            className="flex items-center gap-2 text-muted-foreground transition-colors hover:text-foreground"
           >
-            Profile
+            <UserCircle className="h-4 w-4" />
+            <span>Profile</span>
           </Link>
           <Link
             href="/verification"
-            className="text-muted-foreground transition-colors hover:text-foreground"
+            className="flex items-center gap-2 text-muted-foreground transition-colors hover:text-foreground text-nowrap"
           >
-            Verification History
+            <FileCheck className="h-4 w-4" />
+            <span>Verification History</span>
           </Link>
         </>
       )}
@@ -69,15 +75,16 @@ export default function MainLayout({
 
   return (
     <div className="flex min-h-screen w-full flex-col">
-      <header className="sticky top-0 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6 z-50">
+      <header className="sticky top-0 flex h-16 items-center gap-4 border-b bg-background/95 backdrop-blur-sm px-4 md:px-6 z-50">
         {/* Desktop Navigation */}
-        <nav className="hidden items-center gap-5 text-sm lg:gap-6 md:flex">
+        <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
           <Link
             href="/"
             className="flex items-center gap-2 text-lg font-semibold md:text-base mr-4"
           >
-            {/* <Package2 className="h-6 w-6" /> Add logo icon if desired */}
-            <span className="font-bold">AI Productivity</span>
+            <span className="font-bold bg-gradient-to-r from-primary to-blue-500 bg-clip-text text-transparent text-nowrap text-2xl">
+              AI Productivity
+            </span>
           </Link>
           {navLinks}
         </nav>
@@ -100,51 +107,55 @@ export default function MainLayout({
                 href="/"
                 className="flex items-center gap-2 text-lg font-semibold"
               >
-                {/* <Package2 className="h-6 w-6" /> */}
-                <span className="font-bold">AI Productivity</span>
+                <span className="font-bold bg-gradient-to-r from-primary to-blue-500 bg-clip-text text-transparent">
+                  AI Productivity
+                </span>
               </Link>
             </SheetHeader>
             <nav className="grid gap-4 text-base font-medium">{navLinks}</nav>
           </SheetContent>
         </Sheet>
 
-        {/* Header Right Side: Theme Toggle and Auth Status */}
-        <div className="flex w-full items-center justify-end gap-4 md:ml-auto md:gap-2 lg:gap-4">
+        {/* Header Right Side: Wallet, Theme Toggle and Auth Status */}
+        <div className="flex w-full items-center justify-end gap-3 md:ml-auto">
+          {/* Wallet Status/Connect */}
+          <div className="hidden sm:block">
+            <WalletStatus />
+            <WalletConnect />
+          </div>
+
           <ThemeToggle />
+
           {isLoading ? (
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           ) : user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button
-                  variant="secondary"
-                  size="icon"
-                  className="rounded-full"
-                >
+                <Button variant="secondary" size="icon" className="h-9 w-9">
                   <UserIcon className="h-5 w-5" />
                   <span className="sr-only">Toggle user menu</span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  className="cursor-pointer"
+                  className="cursor-pointer flex items-center"
                   onClick={() => router.push("/profile")}
                 >
+                  <UserCircle className="mr-2 h-4 w-4" />
                   Profile
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  className="cursor-pointer"
+                  className="cursor-pointer flex items-center"
                   onClick={() => router.push("/verification")}
                 >
+                  <FileCheck className="mr-2 h-4 w-4" />
                   Verification History
                 </DropdownMenuItem>
-                {/* Add Settings link if needed */}
-                {/* <DropdownMenuItem>Settings</DropdownMenuItem> */}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  className="cursor-pointer text-red-600 focus:text-red-700 focus:bg-red-50/50"
+                  className="cursor-pointer text-red-600 focus:text-red-700 focus:bg-red-50/50 flex items-center"
                   onClick={handleSignOut}
                 >
                   <LogOut className="mr-2 h-4 w-4" />
@@ -155,9 +166,12 @@ export default function MainLayout({
           ) : (
             <div className="flex items-center gap-2">
               <Button asChild variant="outline" size="sm">
-                <Link href="/login">Login</Link>
+                <Link href="/login" className="flex items-center gap-1">
+                  <ExternalLink className="h-4 w-4" />
+                  Login
+                </Link>
               </Button>
-              <Button asChild size="sm">
+              <Button asChild size="sm" className="hidden sm:flex">
                 <Link href="/signup">Sign Up</Link>
               </Button>
             </div>
@@ -165,6 +179,11 @@ export default function MainLayout({
         </div>
       </header>
       <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8">
+        {/* Mobile Wallet Connect (only shown on small screens) */}
+        <div className="sm:hidden mb-2">
+          <WalletStatus />
+          <WalletConnect />
+        </div>
         {children}
       </main>
     </div>

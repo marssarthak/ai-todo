@@ -3,7 +3,7 @@
 import React from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { Button } from "@/components/ui/button";
-import { LogIn } from "lucide-react";
+import { Wallet } from "lucide-react";
 
 export function WalletConnect() {
   const { login, ready, authenticated } = usePrivy();
@@ -14,9 +14,15 @@ export function WalletConnect() {
   }
 
   return (
-    <Button onClick={login} disabled={!ready}>
-      <LogIn className="mr-2 h-4 w-4" />
-      Connect Wallet / Login
+    <Button
+      onClick={login}
+      disabled={!ready}
+      variant="outline"
+      size="sm"
+      className="mr-1 h-8 text-xs gap-1 border-border/50 hover:bg-muted/80"
+    >
+      <Wallet className="h-3.5 w-3.5" />
+      Connect Wallet
     </Button>
   );
 }
