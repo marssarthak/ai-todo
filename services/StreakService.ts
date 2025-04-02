@@ -46,8 +46,57 @@ export interface Achievement {
 // Default values
 const DEFAULT_DAILY_GOAL = 1;
 
+// Cache implementation
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+class Cache<T> {
+  private store = new Map<string, CacheEntry<T>>();
+  private ttl: number;
+
+  constructor(ttlMs: number = 5 * 60 * 1000) {
+    // Default 5 minute TTL
+    this.ttl = ttlMs;
+  }
+
+  get(key: string): T | null {
+    const entry = this.store.get(key);
+    if (!entry) return null;
+
+    // Check if entry is expired
+    if (Date.now() - entry.timestamp > this.ttl) {
+      this.store.delete(key);
+      return null;
+    }
+
+    return entry.data;
+  }
+
+  set(key: string, data: T): void {
+    this.store.set(key, {
+      data,
+      timestamp: Date.now(),
+    });
+  }
+
+  invalidate(key: string): void {
+    this.store.delete(key);
+  }
+
+  invalidateAll(): void {
+    this.store.clear();
+  }
+}
+
+// Create caches for different data types
+const streakCache = new Cache<StreakData>(2 * 60 * 1000); // 2 minute TTL
+const activityCache = new Cache<DailyActivity[]>(5 * 60 * 1000); // 5 minute TTL
+const achievementsCache = new Cache<Achievement[]>(10 * 60 * 1000); // 10 minute TTL
+
 /**
- * Get a user's current streak data
+ * Get a user's current streak data with caching
  */
 export async function getUserStreak(
   userId: string
@@ -55,10 +104,69 @@ export async function getUserStreak(
   try {
     if (!userId) return null;
 
+    // Check cache first
+    const cacheKey = `streak_${userId}`;
+    const cachedData = streakCache.get(cacheKey);
+    if (cachedData) {
+      return cachedData;
+    }
+
     const supabase = createClient();
     const today = new Date();
 
-    // Get streak data from user_reputation table
+    // Use optimized stored function if available
+    try {
+      const { data: optimizedData, error: optimizedError } = await supabase.rpc(
+        "get_user_streak_data",
+        { p_user_id: userId }
+      );
+
+      if (!optimizedError && optimizedData) {
+        // Transform the data to match our interface
+        const streakData: StreakData = {
+          currentStreak: optimizedData.current_streak || 0,
+          maxStreak: optimizedData.max_streak || 0,
+          lastActiveDate: optimizedData.last_active_date
+            ? new Date(optimizedData.last_active_date)
+            : null,
+          dailyGoal: optimizedData.daily_goal || DEFAULT_DAILY_GOAL,
+          isGoalReached: optimizedData.is_goal_reached || false,
+          tasksCompletedToday: optimizedData.tasks_completed_today || 0,
+          streakAtRisk: false, // Need to calculate
+          daysMissed: 0, // Need to calculate
+          longestStreak: optimizedData.max_streak || 0,
+          lastActivity: optimizedData.last_active_date
+            ? new Date(optimizedData.last_active_date)
+            : null,
+          completedDays: [], // Additional query needed for this
+        };
+
+        // Calculate if streak is at risk
+        const lastActiveDate = streakData.lastActiveDate;
+        const daysSinceActive = lastActiveDate
+          ? differenceInDays(today, lastActiveDate)
+          : 0;
+
+        streakData.streakAtRisk =
+          !streakData.isGoalReached && daysSinceActive === 1;
+        streakData.daysMissed = streakData.streakAtRisk
+          ? 0
+          : daysSinceActive > 1
+          ? daysSinceActive - 1
+          : 0;
+
+        // Cache before returning
+        streakCache.set(cacheKey, streakData);
+        return streakData;
+      }
+    } catch (rpcError) {
+      console.log(
+        "RPC not available, falling back to regular queries",
+        rpcError
+      );
+    }
+
+    // Fallback to regular queries if the RPC is not available
     const { data: userData, error: userError } = await supabase
       .from("user_reputation")
       .select("streak_count, max_streak, last_active_date, daily_goal")
@@ -71,7 +179,7 @@ export async function getUserStreak(
 
     // If no record, return default values
     if (!userData) {
-      return {
+      const defaultData: StreakData = {
         currentStreak: 0,
         maxStreak: 0,
         lastActiveDate: null,
@@ -84,6 +192,9 @@ export async function getUserStreak(
         lastActivity: null,
         completedDays: [],
       };
+
+      streakCache.set(cacheKey, defaultData);
+      return defaultData;
     }
 
     // Get today's activity
@@ -108,7 +219,23 @@ export async function getUserStreak(
     // Calculate if streak is at risk (active yesterday but not yet today)
     const streakAtRisk = !todayActivity && daysSinceActive === 1;
 
-    return {
+    // Get completed days for the last 30 days (could be optimized further)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const { data: completedDaysData } = await supabase
+      .from("daily_activity")
+      .select("activity_date")
+      .eq("user_id", userId)
+      .eq("goal_reached", true)
+      .gte("activity_date", format(thirtyDaysAgo, "yyyy-MM-dd"))
+      .order("activity_date", { ascending: false });
+
+    const completedDays = completedDaysData
+      ? completedDaysData.map((d) => new Date(d.activity_date))
+      : [];
+
+    const streakData: StreakData = {
       currentStreak: userData.streak_count || 0,
       maxStreak: userData.max_streak || 0,
       lastActiveDate,
@@ -123,8 +250,12 @@ export async function getUserStreak(
         : 0,
       longestStreak: userData.max_streak || 0,
       lastActivity: lastActiveDate,
-      completedDays: [],
+      completedDays,
     };
+
+    // Cache the streak data
+    streakCache.set(cacheKey, streakData);
+    return streakData;
   } catch (error) {
     console.error("Error getting user streak:", error);
     return null;
@@ -132,7 +263,7 @@ export async function getUserStreak(
 }
 
 /**
- * Get a user's activity calendar data for a given month
+ * Get a user's activity calendar data for a given month with caching
  */
 export async function getUserActivityCalendar(
   userId: string,
@@ -141,6 +272,13 @@ export async function getUserActivityCalendar(
 ): Promise<DailyActivity[]> {
   try {
     if (!userId) return [];
+
+    // Check cache first
+    const cacheKey = `activity_${userId}_${year}_${month}`;
+    const cachedData = activityCache.get(cacheKey);
+    if (cachedData) {
+      return cachedData;
+    }
 
     const supabase = createClient();
 
@@ -160,11 +298,15 @@ export async function getUserActivityCalendar(
     if (error) throw error;
 
     // Map database records to DailyActivity objects
-    return (data || []).map((record) => ({
+    const activities = (data || []).map((record) => ({
       date: new Date(record.activity_date),
       tasksCompleted: record.tasks_completed,
       goalReached: record.goal_reached,
     }));
+
+    // Cache the data before returning
+    activityCache.set(cacheKey, activities);
+    return activities;
   } catch (error) {
     console.error("Error getting activity calendar:", error);
     return [];
@@ -172,7 +314,7 @@ export async function getUserActivityCalendar(
 }
 
 /**
- * Update a user's daily goal
+ * Update a user's daily goal and invalidate relevant caches
  */
 export async function updateDailyGoal(
   userId: string,
@@ -190,6 +332,9 @@ export async function updateDailyGoal(
       .eq("id", userId);
 
     if (error) throw error;
+
+    // Invalidate cached streak data
+    streakCache.invalidate(`streak_${userId}`);
 
     return true;
   } catch (error) {
@@ -248,16 +393,71 @@ export async function checkStreakRisk(userId: string): Promise<{
 }
 
 /**
- * Get user's achievements
+ * Get user's achievements with pagination and caching
  */
 export async function getUserAchievements(
-  userId: string
+  userId: string,
+  category?: string,
+  page: number = 1,
+  pageSize: number = 100
 ): Promise<Achievement[]> {
   try {
     if (!userId) return [];
 
-    // This would normally fetch from the database
-    // Using mock data for now
+    // Check cache first for full set of achievements (we paginate client-side)
+    const cacheKey = `achievements_${userId}`;
+    const cachedData = achievementsCache.get(cacheKey);
+    if (cachedData) {
+      return cachedData;
+    }
+
+    // Use optimized function if available
+    const supabase = createClient();
+
+    try {
+      const { data: optimizedData, error: optimizedError } = await supabase.rpc(
+        "get_paginated_achievements",
+        {
+          p_user_id: userId,
+          p_category: category || null,
+          p_page: page,
+          p_page_size: pageSize,
+        }
+      );
+
+      if (!optimizedError && optimizedData) {
+        // Transform to our interface
+        const achievements: Achievement[] = optimizedData.map(
+          (item: {
+            id: number;
+            name: string;
+            description: string;
+            icon: string;
+            category: string;
+            is_unlocked: boolean;
+            unlocked_at: string | null;
+          }) => ({
+            id: item.id.toString(),
+            name: item.name,
+            description: item.description,
+            iconName: item.icon, // Note: backend uses 'icon' field
+            category: item.category as any, // Cast to our enum type
+            isUnlocked: item.is_unlocked,
+            unlockedAt: item.unlocked_at
+              ? new Date(item.unlocked_at)
+              : undefined,
+          })
+        );
+
+        // Cache before returning
+        achievementsCache.set(cacheKey, achievements);
+        return achievements;
+      }
+    } catch (rpcError) {
+      console.log("RPC not available, falling back to regular query", rpcError);
+    }
+
+    // Fallback implementation with mock data
     const achievements: Achievement[] = [
       {
         id: "1",
@@ -375,10 +575,95 @@ export async function getUserAchievements(
       },
     ];
 
+    // Cache before returning
+    achievementsCache.set(cacheKey, achievements);
     return achievements;
   } catch (error) {
     console.error("Error getting user achievements:", error);
     return [];
+  }
+}
+
+/**
+ * Check if a user has unlocked an achievement
+ * Uses cached achievement data if available
+ */
+export async function hasAchievement(
+  userId: string,
+  achievementId: string
+): Promise<boolean> {
+  try {
+    if (!userId || !achievementId) return false;
+
+    // Check cache first
+    const cacheKey = `achievements_${userId}`;
+    const cachedData = achievementsCache.get(cacheKey);
+
+    if (cachedData) {
+      // Use cached data if available
+      const achievement = cachedData.find((a) => a.id === achievementId);
+      return achievement?.isUnlocked || false;
+    }
+
+    // Fallback to direct query if no cache
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("user_achievements")
+      .select("achievement_id")
+      .eq("user_id", userId)
+      .eq("achievement_id", achievementId)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    return !!data;
+  } catch (error) {
+    console.error("Error checking achievement status:", error);
+    return false;
+  }
+}
+
+/**
+ * Unlock an achievement for a user and invalidate cached data
+ */
+export async function unlockAchievement(
+  userId: string,
+  achievementId: string
+): Promise<boolean> {
+  try {
+    if (!userId || !achievementId) return false;
+
+    const supabase = createClient();
+
+    // Check if already unlocked
+    const { data: existing, error: checkError } = await supabase
+      .from("user_achievements")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("achievement_id", achievementId)
+      .maybeSingle();
+
+    if (checkError) throw checkError;
+
+    // If already unlocked, just return success
+    if (existing) return true;
+
+    // Insert new achievement with current timestamp
+    const { error } = await supabase.from("user_achievements").insert({
+      user_id: userId,
+      achievement_id: achievementId,
+      unlocked_at: new Date().toISOString(),
+    });
+
+    if (error) throw error;
+
+    // Invalidate the achievements cache for this user
+    achievementsCache.invalidate(`achievements_${userId}`);
+
+    return true;
+  } catch (error) {
+    console.error("Error unlocking achievement:", error);
+    return false;
   }
 }
 
@@ -421,4 +706,11 @@ export function getMotivationalMessage(streakData: StreakData): string {
   }
 
   return `You're on a ${currentStreak} day streak! Complete a task today to keep it going.`;
+}
+
+// Function to clear all caches (useful when testing)
+export function clearAllCaches(): void {
+  streakCache.invalidateAll();
+  activityCache.invalidateAll();
+  achievementsCache.invalidateAll();
 }

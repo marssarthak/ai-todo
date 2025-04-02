@@ -1,0 +1,11 @@
+# Allow all web crawlers
+User-agent: *
+Allow: /
+
+# Disallow access to API routes
+Disallow: /api/
+Disallow: /api/health
+Disallow: /api/test/
+
+# Sitemap location
+Sitemap: https://your-app-url.com/sitemap.xml 

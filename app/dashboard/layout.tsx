@@ -1,12 +1,26 @@
 "use client";
 
-import React from "react";
+import React, { Suspense } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
-import { StreakCounter } from "@/components/gamification/StreakCounter";
+import dynamic from "next/dynamic";
 import { StreakAlert } from "@/components/gamification/StreakAlert";
 import Link from "next/link";
 import { Trophy } from "lucide-react";
+
+// Dynamic import with loading fallback
+const StreakCounter = dynamic(
+  () =>
+    import("@/components/gamification/StreakCounter").then((mod) => ({
+      default: mod.StreakCounter,
+    })),
+  {
+    loading: () => (
+      <div className="h-6 w-20 bg-muted animate-pulse rounded-md"></div>
+    ),
+    ssr: false, // Disable SSR for this component to avoid hydration issues
+  }
+);
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -86,7 +100,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           {/* Streak widget at bottom of sidebar */}
           <div className="p-4 border-t mt-auto">
             <div className="mb-3">
-              <StreakCounter variant="compact" />
+              <Suspense
+                fallback={
+                  <div className="h-6 w-20 bg-muted animate-pulse rounded-md"></div>
+                }
+              >
+                <StreakCounter variant="compact" />
+              </Suspense>
             </div>
             <Link
               href="/profile/streaks"
@@ -101,7 +121,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Main content */}
       <div className="flex-1 flex flex-col">
         {/* Streak alert at top of page when streak at risk */}
-        <StreakAlert variant="banner" />
+        <Suspense fallback={null}>
+          <StreakAlert variant="banner" />
+        </Suspense>
 
         {/* Main content */}
         <main className="flex-1 p-6">{children}</main>

@@ -1,17 +1,52 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { Container } from "@/components/ui/container";
 import { PageHeader } from "@/components/ui/page-header";
 import { getUserAchievements, Achievement } from "@/services/StreakService";
-import { AchievementCard } from "@/components/gamification/AchievementCard";
+import dynamic from "next/dynamic";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StreakCounter } from "@/components/gamification/StreakCounter";
-import { StreakCalendar } from "@/components/gamification/StreakCalendar";
 import { Spinner } from "@/components/ui/spinner";
 import { StreakAlert } from "@/components/gamification/StreakAlert";
 import { Trophy, Clock, Calendar } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useMemoizedFn } from "@/hooks/useMemoizedFn";
+
+// Lazily load heavy components
+const StreakCalendar = dynamic(
+  () =>
+    import("@/components/gamification/StreakCalendar").then((mod) => ({
+      default: mod.StreakCalendar,
+    })),
+  {
+    loading: () => (
+      <div className="h-64 bg-muted animate-pulse rounded-md"></div>
+    ),
+    ssr: false,
+  }
+);
+
+const AchievementCard = dynamic(
+  () =>
+    import("@/components/gamification/AchievementCard").then((mod) => ({
+      default: mod.AchievementCard,
+    })),
+  {
+    loading: () => (
+      <div className="h-48 bg-muted animate-pulse rounded-md"></div>
+    ),
+    ssr: false,
+  }
+);
+
+// Create a simple cache for achievements data
+const achievementsCache = new Map<
+  string,
+  { data: Achievement[]; timestamp: number }
+>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
 
 export default function AchievementsPage() {
   const { user } = useAuth();
@@ -19,18 +54,50 @@ export default function AchievementsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [category, setCategory] = useState("all");
+  const ITEMS_PER_PAGE = 6;
+
   // Categories for filtering achievements
   const categories = ["all", "tasks", "streaks", "goals", "dedication"];
+
+  // Memoized function to fetch achievements with caching
+  const fetchAchievements = useMemoizedFn(async (userId: string) => {
+    // Check if we have cached data that's not expired
+    const cacheKey = userId;
+    const cached = achievementsCache.get(cacheKey);
+
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      return cached.data;
+    }
+
+    // No valid cache, fetch from service
+    try {
+      const achievementsData = await getUserAchievements(userId);
+
+      // Update cache with new data
+      achievementsCache.set(cacheKey, {
+        data: achievementsData,
+        timestamp: Date.now(),
+      });
+
+      return achievementsData;
+    } catch (err) {
+      console.error("Failed to fetch achievements:", err);
+      throw err;
+    }
+  });
 
   useEffect(() => {
     if (!user?.id) return;
 
-    async function fetchAchievements() {
+    const loadAchievements = async () => {
       try {
         setIsLoading(true);
         setError(null);
 
-        const achievementsData = await getUserAchievements(user.id);
+        const achievementsData = await fetchAchievements(user.id);
         setAchievements(achievementsData);
       } catch (err) {
         console.error("Failed to fetch achievements:", err);
@@ -38,26 +105,72 @@ export default function AchievementsPage() {
       } finally {
         setIsLoading(false);
       }
-    }
+    };
 
-    fetchAchievements();
-  }, [user]);
+    loadAchievements();
+  }, [user, fetchAchievements]);
+
+  // Memoized filtered achievements to avoid unnecessary recalculations
+  const {
+    unlockedAchievements,
+    lockedAchievements,
+    paginatedUnlockedAchievements,
+    paginatedLockedAchievements,
+    totalUnlockedPages,
+    totalLockedPages,
+  } = useMemo(() => {
+    // Filter by category first
+    const filtered = achievements.filter(
+      (a) => category === "all" || a.category === category
+    );
+
+    // Split into unlocked and locked
+    const unlocked = filtered.filter((a) => a.isUnlocked);
+    const locked = filtered.filter((a) => !a.isUnlocked);
+
+    // Calculate pagination
+    const totalUnlockedPages = Math.ceil(unlocked.length / ITEMS_PER_PAGE);
+    const totalLockedPages = Math.ceil(locked.length / ITEMS_PER_PAGE);
+
+    // Apply pagination
+    const startIdx = (page - 1) * ITEMS_PER_PAGE;
+    const paginatedUnlocked = unlocked.slice(
+      startIdx,
+      startIdx + ITEMS_PER_PAGE
+    );
+    const paginatedLocked = locked.slice(startIdx, startIdx + ITEMS_PER_PAGE);
+
+    return {
+      unlockedAchievements: unlocked,
+      lockedAchievements: locked,
+      paginatedUnlockedAchievements: paginatedUnlocked,
+      paginatedLockedAchievements: paginatedLocked,
+      totalUnlockedPages,
+      totalLockedPages,
+    };
+  }, [achievements, category, page, ITEMS_PER_PAGE]);
 
   // Count unlocked achievements by category
-  const getUnlockedCount = (category?: string) => {
+  const getUnlockedCount = useMemoizedFn((category?: string) => {
     if (!category || category === "all") {
       return achievements.filter((a) => a.isUnlocked).length;
     }
     return achievements.filter((a) => a.category === category && a.isUnlocked)
       .length;
-  };
+  });
 
   // Get total achievement count by category
-  const getTotalCount = (category?: string) => {
+  const getTotalCount = useMemoizedFn((category?: string) => {
     if (!category || category === "all") {
       return achievements.length;
     }
     return achievements.filter((a) => a.category === category).length;
+  });
+
+  // Reset page when changing category
+  const handleCategoryChange = (newCategory: string) => {
+    setCategory(newCategory);
+    setPage(1);
   };
 
   // Show loading spinner while loading achievements
@@ -88,9 +201,6 @@ export default function AchievementsPage() {
     );
   }
 
-  const unlockedAchievements = achievements.filter((a) => a.isUnlocked);
-  const lockedAchievements = achievements.filter((a) => !a.isUnlocked);
-
   return (
     <Container>
       <PageHeader
@@ -100,12 +210,20 @@ export default function AchievementsPage() {
 
       {/* Streak alert if streak is at risk */}
       <div className="mb-6">
-        <StreakAlert variant="inline" />
+        <Suspense fallback={null}>
+          <StreakAlert variant="inline" />
+        </Suspense>
       </div>
 
       {/* Stats summary section */}
       <div className="grid gap-6 md:grid-cols-3 mb-8">
-        <StreakCounter showWarning={false} variant="standard" />
+        <Suspense
+          fallback={
+            <div className="h-32 bg-muted animate-pulse rounded-md"></div>
+          }
+        >
+          <StreakCounter showWarning={false} variant="standard" />
+        </Suspense>
 
         <div className="bg-card rounded-lg border p-4">
           <div className="flex items-center mb-2">
@@ -189,9 +307,15 @@ export default function AchievementsPage() {
         </div>
       </div>
 
-      {/* Calendar section */}
+      {/* Calendar section with lazy loading */}
       <div className="mb-8">
-        <StreakCalendar />
+        <Suspense
+          fallback={
+            <div className="h-64 bg-muted animate-pulse rounded-md"></div>
+          }
+        >
+          <StreakCalendar />
+        </Suspense>
       </div>
 
       {/* Achievements section */}
@@ -202,37 +326,75 @@ export default function AchievementsPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="all" className="mb-6">
+      <Tabs
+        defaultValue="all"
+        className="mb-6"
+        value={category}
+        onValueChange={handleCategoryChange}
+      >
         <TabsList>
-          {categories.map((category) => (
-            <TabsTrigger key={category} value={category} className="capitalize">
-              {category} ({getUnlockedCount(category)}/{getTotalCount(category)}
-              )
+          {categories.map((cat) => (
+            <TabsTrigger key={cat} value={cat} className="capitalize">
+              {cat} ({getUnlockedCount(cat)}/{getTotalCount(cat)})
             </TabsTrigger>
           ))}
         </TabsList>
 
-        {categories.map((category) => (
-          <TabsContent key={category} value={category}>
+        {categories.map((cat) => (
+          <TabsContent key={cat} value={cat}>
             <div className="mt-6">
               <h3 className="text-lg font-medium mb-4">
                 Unlocked Achievements
               </h3>
-              {unlockedAchievements.filter(
-                (a) => category === "all" || a.category === category
-              ).length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {unlockedAchievements
-                    .filter(
-                      (a) => category === "all" || a.category === category
-                    )
-                    .map((achievement) => (
-                      <AchievementCard
+
+              {unlockedAchievements.length > 0 ? (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {paginatedUnlockedAchievements.map((achievement) => (
+                      <Suspense
                         key={achievement.id}
-                        achievement={achievement}
-                      />
+                        fallback={
+                          <div className="h-48 bg-muted animate-pulse rounded-md"></div>
+                        }
+                      >
+                        <AchievementCard achievement={achievement} />
+                      </Suspense>
                     ))}
-                </div>
+                  </div>
+
+                  {/* Pagination controls */}
+                  {totalUnlockedPages > 1 && (
+                    <div className="flex justify-center mt-6 gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+                        disabled={page === 1}
+                      >
+                        Previous
+                      </Button>
+
+                      <div className="flex items-center mx-2">
+                        <span className="text-sm text-muted-foreground">
+                          Page {page} of {totalUnlockedPages}
+                        </span>
+                      </div>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          setPage((prev) =>
+                            Math.min(prev + 1, totalUnlockedPages)
+                          )
+                        }
+                        disabled={page === totalUnlockedPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="text-center py-10 text-muted-foreground">
                   No achievements unlocked in this category yet
@@ -242,21 +404,55 @@ export default function AchievementsPage() {
               <h3 className="text-lg font-medium mt-8 mb-4">
                 Locked Achievements
               </h3>
-              {lockedAchievements.filter(
-                (a) => category === "all" || a.category === category
-              ).length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {lockedAchievements
-                    .filter(
-                      (a) => category === "all" || a.category === category
-                    )
-                    .map((achievement) => (
-                      <AchievementCard
+
+              {lockedAchievements.length > 0 ? (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {paginatedLockedAchievements.map((achievement) => (
+                      <Suspense
                         key={achievement.id}
-                        achievement={achievement}
-                      />
+                        fallback={
+                          <div className="h-48 bg-muted animate-pulse rounded-md"></div>
+                        }
+                      >
+                        <AchievementCard achievement={achievement} />
+                      </Suspense>
                     ))}
-                </div>
+                  </div>
+
+                  {/* Pagination controls */}
+                  {totalLockedPages > 1 && (
+                    <div className="flex justify-center mt-6 gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+                        disabled={page === 1}
+                      >
+                        Previous
+                      </Button>
+
+                      <div className="flex items-center mx-2">
+                        <span className="text-sm text-muted-foreground">
+                          Page {page} of {totalLockedPages}
+                        </span>
+                      </div>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          setPage((prev) =>
+                            Math.min(prev + 1, totalLockedPages)
+                          )
+                        }
+                        disabled={page === totalLockedPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="text-center py-10 text-green-500 font-medium">
                   Congratulations! You've unlocked all achievements in this
