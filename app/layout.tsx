@@ -7,6 +7,7 @@ import { LocalStorageDebug } from "@/components/debug/LocalStorageDebug";
 import { AiTestComponent } from "@/components/debug/AiTestComponent";
 import { PrivyProviderWrapper } from "@/components/providers/PrivyProviderWrapper";
 import { Toaster } from "sonner";
+import MainLayout from "@/components/layout/MainLayout";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -41,12 +42,8 @@ export default function RootLayout({
               enableSystem
               disableTransitionOnChange
             >
-              <div className="flex flex-col min-h-screen">
-                <main className="flex-grow container mx-auto px-4 py-8">
-                  {children}
-                </main>
-                <Toaster />
-              </div>
+              <MainLayout>{children}</MainLayout>
+              <Toaster />
             </ThemeProvider>
           </AuthProvider>
         </PrivyProviderWrapper>
