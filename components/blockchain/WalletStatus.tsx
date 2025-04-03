@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { LogOut, Copy, Check, Wallet } from "lucide-react";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { Skeleton } from "@/components/ui/skeleton";
-import { polygon, polygonAmoy } from "viem/chains";
+import { base, baseSepolia } from "viem/chains";
 import {
   Tooltip,
   TooltipContent,
@@ -45,10 +45,10 @@ export function WalletStatus() {
       connectedWallet.address.length - 4
     )}`;
     const chainName =
-      connectedWallet.chainId === `eip155:${polygon.id}`
-        ? "Polygon"
-        : connectedWallet.chainId === `eip155:${polygonAmoy.id}`
-        ? "Amoy"
+      connectedWallet.chainId === `eip155:${base.id}`
+        ? "Base"
+        : connectedWallet.chainId === `eip155:${baseSepolia.id}`
+        ? "Base Sepolia"
         : "Unknown Network";
 
     return (

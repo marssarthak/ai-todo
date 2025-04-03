@@ -2,24 +2,23 @@
 
 import React from "react";
 import { PrivyProvider } from "@privy-io/react-auth";
-import { polygon, polygonAmoy } from "viem/chains"; // Import Polygon chains from viem
-import { WagmiProvider, createConfig } from "@privy-io/wagmi"; // Use Privy's WagmiProvider
+// import { baseSepolia } from "viem/chains";
+import { WagmiProvider, createConfig } from "@privy-io/wagmi";
 import { http } from "viem";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { Chain } from "viem"; // Explicitly import Chain type
+import type { Chain as ViemChain } from "viem";
+import type { Chain as PrivyChain } from "@privy-io/chains";
+import { baseSepolia } from "@privy-io/chains";
 
-// Define your supported chains for Wagmi config
-const wagmiSupportedChains: readonly [Chain, ...Chain[]] = [
-  polygon,
-  polygonAmoy,
+const wagmiSupportedChains: readonly [ViemChain, ...ViemChain[]] = [
+  baseSepolia,
 ];
 
 // Create Wagmi config using Privy's helpers
 const wagmiConfig = createConfig({
   chains: wagmiSupportedChains, // Use the readonly tuple here
   transports: {
-    [polygon.id]: http(), // Use default public RPC for Polygon
-    [polygonAmoy.id]: http(), // Use default public RPC for Amoy
+    [baseSepolia.id]: http(), // Use default public RPC for Polygon
   },
 });
 
@@ -27,7 +26,9 @@ const wagmiConfig = createConfig({
 const queryClient = new QueryClient();
 
 // Create a mutable array for PrivyProvider config
-const privySupportedChains: Chain[] = [...wagmiSupportedChains];
+const privySupportedChains: PrivyChain[] = [
+  baseSepolia as unknown as PrivyChain,
+];
 
 export function PrivyProviderWrapper({
   children,
@@ -36,7 +37,7 @@ export function PrivyProviderWrapper({
 }) {
   return (
     <PrivyProvider
-      appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || ""}
+      appId={process.env["NEXT_PUBLIC_PRIVY_APP_ID"] || ""}
       config={{
         // Customize Privy's appearance and behavior here
         appearance: {
@@ -52,7 +53,7 @@ export function PrivyProviderWrapper({
         // Login methods
         loginMethods: ["email", "wallet"], // Allow login via email or external wallet
         // Default chain configuration (users can switch)
-        defaultChain: polygon, // Set Polygon mainnet as default
+        defaultChain: baseSepolia, // Set Polygon mainnet as default
         // Supported chains for users to connect to
         supportedChains: privySupportedChains, // Use the mutable array here
       }}

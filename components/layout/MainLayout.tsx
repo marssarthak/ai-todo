@@ -146,10 +146,11 @@ export default function MainLayout({
           {/* User profile dropdown & actions - right side */}
           <div className="flex items-center ml-auto gap-3">
             {/* Wallet Status/Connect - always in header */}
-            <WalletStatus />
-            <WalletConnect />
+            <div className="flex items-center gap-2">
+              <WalletStatus />
+              <WalletConnect />
+            </div>
             <ThemeToggle />
-
             {isLoading ? (
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             ) : user ? (
