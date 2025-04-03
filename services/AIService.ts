@@ -13,7 +13,6 @@ export async function getSimpleCompletion(prompt: string): Promise<string> {
   "use server";
 
   try {
-    console.log(`Using AI Model: ${MODEL}`); // Log the model being used
     const { text } = await generateText({
       model: openai(MODEL),
       prompt: prompt,
@@ -57,7 +56,6 @@ export async function getStructuredCompletion<T>({
   }
 
   try {
-    console.log(`Using AI Model for structured output: ${MODEL}`);
     // Call generateObject with EITHER prompt or messages
     const { object } = await generateObject({
       model: openai(MODEL),

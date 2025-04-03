@@ -50,13 +50,9 @@ export async function GET(request: Request) {
     // ]
     const fullPrompt = `${systemMessage}\n\n${userPrompt}`; // Combine for simple completion
 
-    console.log("Sending analytics data to AI for insights:", dataSummary);
-
     // 4. Call AI Service for Text Completion
     // Using simple completion for now, but could use generateObject if a specific structure is needed
     const insights = await getSimpleCompletion(fullPrompt);
-
-    console.log("AI Insights Received:", insights);
 
     // 5. Return the insights
     return NextResponse.json({ insights: insights.trim() });

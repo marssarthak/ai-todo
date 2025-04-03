@@ -66,10 +66,10 @@ DECLARE
   achievement_id INTEGER;
 BEGIN
   -- Get current streak info
-  SELECT streak_count, max_streak, last_active_date 
+  SELECT ur.streak_count, ur.max_streak, ur.last_active_date 
   INTO current_streak, max_streak, yesterday
-  FROM user_reputation 
-  WHERE id = NEW.user_id;
+  FROM user_reputation ur
+  WHERE ur.id = NEW.user_id;
   
   -- Calculate yesterday and two days ago
   yesterday := CURRENT_DATE - INTERVAL '1 day';
@@ -103,17 +103,17 @@ BEGIN
   END IF;
   
   -- Update user_reputation
-  UPDATE user_reputation 
+  UPDATE user_reputation ur
   SET 
     streak_count = current_streak,
     max_streak = max_streak,
     last_active_date = NEW.activity_date
-  WHERE id = NEW.user_id;
+  WHERE ur.id = NEW.user_id;
   
   -- Check if they've unlocked any streak achievements
   IF current_streak >= 3 THEN
     -- First Streak achievement (3 days)
-    SELECT id INTO achievement_id FROM achievements WHERE name = 'First Streak';
+    SELECT a.id INTO achievement_id FROM achievements a WHERE a.name = 'First Streak';
     
     INSERT INTO user_achievements (user_id, achievement_id)
     VALUES (NEW.user_id, achievement_id)
@@ -122,7 +122,7 @@ BEGIN
   
   IF current_streak >= 7 THEN
     -- Week Warrior achievement (7 days)
-    SELECT id INTO achievement_id FROM achievements WHERE name = 'Week Warrior';
+    SELECT a.id INTO achievement_id FROM achievements a WHERE a.name = 'Week Warrior';
     
     INSERT INTO user_achievements (user_id, achievement_id)
     VALUES (NEW.user_id, achievement_id)
@@ -131,7 +131,7 @@ BEGIN
   
   IF current_streak >= 30 THEN
     -- Consistent Achiever achievement (30 days)
-    SELECT id INTO achievement_id FROM achievements WHERE name = 'Consistent Achiever';
+    SELECT a.id INTO achievement_id FROM achievements a WHERE a.name = 'Consistent Achiever';
     
     INSERT INTO user_achievements (user_id, achievement_id)
     VALUES (NEW.user_id, achievement_id)
@@ -164,8 +164,8 @@ BEGIN
     today_date := CURRENT_DATE;
     
     -- Get user's daily goal
-    SELECT daily_goal INTO daily_goal FROM user_reputation 
-    WHERE id = NEW.user_id;
+    SELECT ur.daily_goal INTO daily_goal FROM user_reputation ur
+    WHERE ur.id = NEW.user_id;
     
     -- Default to 1 if not set
     IF daily_goal IS NULL THEN
@@ -173,10 +173,10 @@ BEGIN
     END IF;
     
     -- Check if we already have a record for today
-    SELECT tasks_completed, goal_reached 
+    SELECT da.tasks_completed, da.goal_reached 
     INTO current_tasks, goal_reached
-    FROM daily_activity 
-    WHERE user_id = NEW.user_id AND activity_date = today_date;
+    FROM daily_activity da
+    WHERE da.user_id = NEW.user_id AND da.activity_date = today_date;
     
     -- If no record exists for today, create one
     IF current_tasks IS NULL THEN
@@ -193,16 +193,16 @@ BEGIN
       current_tasks := current_tasks + 1;
       goal_reached := (current_tasks >= daily_goal);
       
-      UPDATE daily_activity 
+      UPDATE daily_activity da
       SET 
         tasks_completed = current_tasks,
         goal_reached = goal_reached
-      WHERE user_id = NEW.user_id AND activity_date = today_date;
+      WHERE da.user_id = NEW.user_id AND da.activity_date = today_date;
     END IF;
     
     -- Check for first task achievement
     IF NEW.status = 'completed' THEN
-      SELECT id INTO achievement_id FROM achievements WHERE name = 'First Task';
+      SELECT a.id INTO achievement_id FROM achievements a WHERE a.name = 'First Task';
       
       INSERT INTO user_achievements (user_id, achievement_id)
       VALUES (NEW.user_id, achievement_id)
@@ -213,18 +213,18 @@ BEGIN
     IF EXTRACT(DOW FROM today_date) IN (0, 6) THEN -- 0 is Sunday, 6 is Saturday
       -- Check if they've completed tasks on both Saturday and Sunday
       IF EXISTS (
-        SELECT 1 FROM daily_activity 
-        WHERE user_id = NEW.user_id 
-        AND EXTRACT(DOW FROM activity_date) = 0 -- Sunday
-        AND tasks_completed > 0
+        SELECT 1 FROM daily_activity da
+        WHERE da.user_id = NEW.user_id 
+        AND EXTRACT(DOW FROM da.activity_date) = 0 -- Sunday
+        AND da.tasks_completed > 0
       ) AND EXISTS (
-        SELECT 1 FROM daily_activity 
-        WHERE user_id = NEW.user_id 
-        AND EXTRACT(DOW FROM activity_date) = 6 -- Saturday
-        AND tasks_completed > 0
+        SELECT 1 FROM daily_activity da
+        WHERE da.user_id = NEW.user_id 
+        AND EXTRACT(DOW FROM da.activity_date) = 6 -- Saturday
+        AND da.tasks_completed > 0
       ) THEN
         -- Weekend Warrior achievement
-        SELECT id INTO achievement_id FROM achievements WHERE name = 'Weekend Warrior';
+        SELECT a.id INTO achievement_id FROM achievements a WHERE a.name = 'Weekend Warrior';
         
         INSERT INTO user_achievements (user_id, achievement_id)
         VALUES (NEW.user_id, achievement_id)
@@ -235,7 +235,7 @@ BEGIN
     -- Check for time-based achievements
     IF EXTRACT(HOUR FROM NOW()) >= 22 THEN -- After 10 PM
       -- Night Owl achievement
-      SELECT id INTO achievement_id FROM achievements WHERE name = 'Night Owl';
+      SELECT a.id INTO achievement_id FROM achievements a WHERE a.name = 'Night Owl';
       
       INSERT INTO user_achievements (user_id, achievement_id)
       VALUES (NEW.user_id, achievement_id)
@@ -244,7 +244,7 @@ BEGIN
     
     IF EXTRACT(HOUR FROM NOW()) < 7 THEN -- Before 7 AM
       -- Early Bird achievement
-      SELECT id INTO achievement_id FROM achievements WHERE name = 'Early Bird';
+      SELECT a.id INTO achievement_id FROM achievements a WHERE a.name = 'Early Bird';
       
       INSERT INTO user_achievements (user_id, achievement_id)
       VALUES (NEW.user_id, achievement_id)

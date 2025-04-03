@@ -12,6 +12,8 @@ export async function PUT(
   const supabase = await createClient();
   const { id: taskId } = await params;
 
+  console.log("PUT request received for task ID:", taskId);
+
   try {
     const {
       data: { user },

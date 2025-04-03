@@ -88,10 +88,11 @@ export async function POST(request: Request) {
       deadline: deadline ? new Date(deadline).toISOString() : null, // Ensure correct format for DB
     };
 
+    // Fix: Use .insert() without passing any metadata option
     const { data: newTask, error: dbError } = await supabase
       .from("tasks")
       .insert(newTaskData)
-      .select()
+      .select("*") // Select all fields after insert
       .single(); // Get the newly created task back
 
     if (dbError) {
