@@ -39,6 +39,7 @@ import {
 import { useRouter, usePathname } from "next/navigation";
 import { WalletConnect } from "@/components/blockchain/WalletConnect";
 import { cn } from "@/lib/utils";
+import FloatingChatbot from "@/components/ai/FloatingChatbot";
 
 export default function MainLayout({
   children,
@@ -359,6 +360,9 @@ export default function MainLayout({
         {/* Main content - scrollable */}
         <main className="flex-1 overflow-auto p-4 md:p-8 ">{children}</main>
       </div>
+
+      {/* Floating Chatbot */}
+      <FloatingChatbot />
     </div>
   );
 }
