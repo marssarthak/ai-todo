@@ -113,7 +113,7 @@ export async function getCompletionAnalytics(): Promise<TaskAnalyticsData | null
     totalCompleted: completedTasks.length, // Based on the lookback period
     completedLast7Days,
     completedThisWeek,
-    averageCompletionTimeDays,
+    averageCompletionTimeDays: averageCompletionTimeDays || 0,
     // completionRateLast30Days: completionRate,
   };
 }

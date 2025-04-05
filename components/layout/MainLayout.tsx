@@ -16,6 +16,7 @@ import {
   Flame,
   Home,
   X,
+  Star,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -37,7 +38,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useRouter, usePathname } from "next/navigation";
 import { WalletConnect } from "@/components/blockchain/WalletConnect";
-import { WalletStatus } from "@/components/blockchain/WalletStatus";
 import { cn } from "@/lib/utils";
 
 export default function MainLayout({
@@ -96,6 +96,12 @@ export default function MainLayout({
       path: "/profile/achievements",
       requiresAuth: true,
     },
+    {
+      icon: <Star className="h-4 w-4" />,
+      label: "Reputation",
+      path: "/profile/reputation",
+      requiresAuth: true,
+    },
   ];
 
   return (
@@ -147,7 +153,7 @@ export default function MainLayout({
           <div className="flex items-center ml-auto gap-3">
             {/* Wallet Status/Connect - always in header */}
             <div className="flex items-center gap-2">
-              <WalletStatus />
+              {/* <WalletStatus /> */}
               <WalletConnect />
             </div>
             <ThemeToggle />

@@ -13,7 +13,7 @@ interface TaskPrioritizerProps {
   taskData: {
     title: string;
     description?: string;
-    deadline?: Date;
+    deadline?: Date | undefined;
     currentPriority?: TaskPriority;
   };
   // Callback to apply the suggested priority to the parent form

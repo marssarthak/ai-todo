@@ -160,7 +160,9 @@ export function TaskList({
                 >
                   <Checkbox
                     id={`filter-priority-${option.id}`}
-                    checked={currentFilters.priority?.includes(option.id)}
+                    checked={
+                      currentFilters.priority?.includes(option.id) || false
+                    }
                     onCheckedChange={(checked) =>
                       handlePriorityFilterChange(option.id, checked)
                     }
@@ -183,7 +185,9 @@ export function TaskList({
                 >
                   <Checkbox
                     id={`filter-status-${option.id}`}
-                    checked={currentFilters.status?.includes(option.id)}
+                    checked={
+                      currentFilters.status?.includes(option.id) || false
+                    }
                     onCheckedChange={(checked) =>
                       handleStatusFilterChange(option.id, checked)
                     }

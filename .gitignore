@@ -40,6 +40,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 prompts.md
-contracts
 lib/blockchain.ts
 todo.md

@@ -11,18 +11,17 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { ExternalLinkIcon, RefreshCwIcon } from "lucide-react";
 import { Task } from "@/types/task";
-import { NetworkType } from "@/lib/blockchain";
 
 interface TransactionStatusProps {
   task: Task;
   onRetry?: () => void;
-  networkType?: NetworkType;
+  networkType?: "base";
 }
 
 export function TransactionStatus({
   task,
   onRetry,
-  networkType = NetworkType.Base,
+  networkType = "base",
 }: TransactionStatusProps) {
   const metadata = task.metadata;
 
@@ -32,18 +31,7 @@ export function TransactionStatus({
 
   // Get block explorer URL based on network type and testnet status
   const getExplorerUrl = () => {
-    if (!metadata.transactionHash) return null;
-
-    // Default to Base Sepolia
-    let baseUrl = "https://sepolia.basescan.org";
-
-    if (networkType === NetworkType.Base) {
-      baseUrl = "https://sepolia.basescan.org"; // Assuming testnet for now
-    } else if (networkType === NetworkType.Polygon) {
-      baseUrl = "https://mumbai.polygonscan.com"; // Assuming testnet for now
-    }
-
-    return `${baseUrl}/tx/${metadata.transactionHash}`;
+    return "https://sepolia.basescan.org";
   };
 
   // Calculate progress value based on status

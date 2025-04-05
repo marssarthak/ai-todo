@@ -25,8 +25,7 @@ export function AchievementCard({
   className,
   size = "md",
 }: AchievementCardProps) {
-  const { name, description, icon, isUnlocked, unlockedAt, category } =
-    achievement;
+  const { name, description, isUnlocked, unlockedAt, category } = achievement;
 
   // Size-specific styles
   const sizes = {
@@ -54,7 +53,7 @@ export function AchievementCard({
   };
 
   // Map the icon string to a component
-  const IconComponent = iconMap[icon] || Trophy;
+  const IconComponent = Trophy;
 
   return (
     <Card
@@ -129,7 +128,7 @@ export function AchievementBadge({
   showTooltip = true,
   showLabel = false,
 }: AchievementBadgeProps) {
-  const { name, description, icon, isUnlocked } = achievement;
+  const { name, description, isUnlocked } = achievement;
 
   // Size-specific styles
   const sizes = {
@@ -139,7 +138,7 @@ export function AchievementBadge({
   };
 
   // Map the icon string to a component
-  const IconComponent = iconMap[icon] || Trophy;
+  const IconComponent = Trophy;
 
   const badge = (
     <div className="flex flex-col items-center">

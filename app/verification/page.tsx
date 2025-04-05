@@ -13,17 +13,37 @@ import { Button } from "@/components/ui/button";
 import { getTasks } from "@/services/TaskService";
 import { TransactionStatus } from "@/components/blockchain/TransactionStatus";
 import { VerificationStatus } from "@/components/blockchain/VerificationStatus";
-import { retryVerification } from "@/services/VerificationService";
-import { NetworkType } from "@/lib/blockchain";
+import { formatTaskForHashing } from "@/services/VerificationService";
 import { format } from "date-fns";
 import { Loader2, Download } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useWeb3Gamification } from "@/hooks/useWeb3Gamification";
+import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export default function VerificationHistoryPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadingTaskIds, setLoadingTaskIds] = useState<Set<string>>(new Set());
+  const [verificationStatuses, setVerificationStatuses] = useState<
+    Record<string, boolean>
+  >({});
   const { user } = useAuth();
+
+  const {
+    isLoading: isWeb3Loading,
+    error: web3Error,
+    userAddress,
+    isTaskVerified,
+    verifyTask,
+    getReputationScore,
+    getUserGamificationData,
+  } = useWeb3Gamification();
 
   useEffect(() => {
     const fetchTasks = async () => {
@@ -33,9 +53,28 @@ export default function VerificationHistoryPage() {
         setIsLoading(true);
         const allTasks = await getTasks();
 
-        // Filter to only include tasks with verification metadata
+        const completedTasks = allTasks.filter(
+          (task) => task.status === "completed"
+        );
+
+        const isVerfiedMap = await Promise.all(
+          completedTasks.map(async (task) => {
+            return await isTaskVerified(task.id);
+          })
+        );
+
+        const verificationStatuses = completedTasks.reduce(
+          (acc, task, index) => {
+            acc[task.id] = isVerfiedMap[index] as boolean;
+            return acc;
+          },
+          {} as Record<string, boolean>
+        );
+
+        setVerificationStatuses(verificationStatuses);
+
         const verifiedTasks = allTasks.filter(
-          (task) => task.metadata?.verified || task.metadata?.verificationStatus
+          (task, index) => isVerfiedMap[index]
         );
 
         // Ensure dates are Date objects
@@ -50,13 +89,13 @@ export default function VerificationHistoryPage() {
               ? new Date(t.metadata.verifiedAt)
               : undefined,
           },
-        }));
+        })) as Task[];
 
         // Sort by verification date, newest first
         tasksWithDates.sort((a, b) => {
           const dateA = a.metadata?.verifiedAt || a.updatedAt;
           const dateB = b.metadata?.verifiedAt || b.updatedAt;
-          return dateB.getTime() - dateA.getTime();
+          return new Date(dateB).getTime() - new Date(dateA).getTime();
         });
 
         setTasks(tasksWithDates);
@@ -68,30 +107,50 @@ export default function VerificationHistoryPage() {
     };
 
     fetchTasks();
-  }, [user]);
+  }, [user, userAddress]);
 
-  const handleRetry = async (task: Task) => {
-    setLoadingTaskIds((prev) => new Set(prev).add(task.id));
-    try {
-      await retryVerification(task);
-      // Refresh the tasks list
-      const allTasks = await getTasks();
-      const verifiedTasks = allTasks.filter(
-        (task) => task.metadata?.verified || task.metadata?.verificationStatus
-      );
-      setTasks(verifiedTasks);
-    } catch (error) {
-      console.error("Failed to retry verification:", error);
-    } finally {
-      setLoadingTaskIds((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(task.id);
-        return newSet;
-      });
+  // const handleRetry = async (task: Task) => {
+  //   setLoadingTaskIds((prev) => new Set(prev).add(task.id));
+  //   try {
+  //     // First use the local service to update the task metadata
+  //     await retryVerification(task);
+
+  //     // Then submit verification to the blockchain if possible
+  //     if (userAddress) {
+  //       await verifyTask(task.title + task.description);
+  //     }
+
+  //     // Refresh the tasks list
+  //     const allTasks = await getTasks();
+  //     const verifiedTasks = allTasks.filter(
+  //       (task) => task.metadata?.verified || task.metadata?.verificationStatus
+  //     );
+  //     setTasks(verifiedTasks as Task[]);
+  //   } catch (error) {
+  //     console.error("Failed to retry verification:", error);
+  //   } finally {
+  //     setLoadingTaskIds((prev) => {
+  //       const newSet = new Set(prev);
+  //       newSet.delete(task.id);
+  //       return newSet;
+  //     });
+  //   }
+  // };
+
+  const exportVerificationData = async () => {
+    // Get additional data from blockchain if wallet is connected
+    let reputationScore = 0;
+    let gamificationData = null;
+
+    if (userAddress) {
+      try {
+        reputationScore = await getReputationScore();
+        gamificationData = await getUserGamificationData();
+      } catch (error) {
+        console.error("Error fetching blockchain data for export:", error);
+      }
     }
-  };
 
-  const exportVerificationData = () => {
     const verificationData = tasks.map((task) => ({
       id: task.id,
       title: task.title,
@@ -104,9 +163,18 @@ export default function VerificationHistoryPage() {
         ? format(new Date(task.metadata.verifiedAt), "yyyy-MM-dd HH:mm:ss")
         : "",
       completedAt: format(task.updatedAt, "yyyy-MM-dd HH:mm:ss"),
+      blockchainVerified: verificationStatuses[task.id] || false,
     }));
 
-    const dataStr = JSON.stringify(verificationData, null, 2);
+    const exportData = {
+      tasks: verificationData,
+      gamification: gamificationData,
+      reputationScore,
+      userAddress: userAddress || "Not connected",
+      exportDate: format(new Date(), "yyyy-MM-dd HH:mm:ss"),
+    };
+
+    const dataStr = JSON.stringify(exportData, null, 2);
     const dataUri =
       "data:application/json;charset=utf-8," + encodeURIComponent(dataStr);
 
@@ -132,15 +200,26 @@ export default function VerificationHistoryPage() {
           </p>
         </div>
 
-        <Button
-          onClick={exportVerificationData}
-          disabled={tasks.length === 0 || isLoading}
-          className="flex items-center"
-        >
-          <Download className="h-4 w-4 mr-2" />
-          Export Data
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={exportVerificationData}
+            disabled={tasks.length === 0 || isLoading}
+            className="flex items-center"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export Data
+          </Button>
+        </div>
       </div>
+
+      {!userAddress && (
+        <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+          <p className="text-yellow-800">
+            Connect your wallet to see blockchain verification status and verify
+            tasks on-chain.
+          </p>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex justify-center items-center h-40">
@@ -162,19 +241,45 @@ export default function VerificationHistoryPage() {
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-xl">{task.title}</CardTitle>
-                  <VerificationStatus task={task} size="md" />
+                  <div className="flex items-center gap-2">
+                    {userAddress && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge
+                              variant={
+                                verificationStatuses[task.id]
+                                  ? "success"
+                                  : "outline"
+                              }
+                            >
+                              {verificationStatuses[task.id]
+                                ? "On-Chain"
+                                : "Not On-Chain"}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {verificationStatuses[task.id]
+                              ? "Verified on blockchain"
+                              : "Not verified on blockchain yet"}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                    {/* <VerificationStatus task={task} size="md" /> */}
+                  </div>
                 </div>
                 <CardDescription>
                   Completed on {format(task.updatedAt, "PPP 'at' p")}
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              {/* <CardContent>
                 <TransactionStatus
                   task={task}
-                  networkType={NetworkType.Base}
+                  networkType={"base"}
                   onRetry={() => handleRetry(task)}
                 />
-              </CardContent>
+              </CardContent> */}
             </Card>
           ))}
         </div>

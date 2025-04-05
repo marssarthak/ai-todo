@@ -5,7 +5,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/context/AuthContext";
 import { LocalStorageDebug } from "@/components/debug/LocalStorageDebug";
 import { AiTestComponent } from "@/components/debug/AiTestComponent";
-import { PrivyProviderWrapper } from "@/components/providers/PrivyProviderWrapper";
+import { WagmiProviderWrapper } from "@/components/providers/WagmiProviderWrapper";
 import { Toaster } from "sonner";
 import MainLayout from "@/components/layout/MainLayout";
 
@@ -34,7 +34,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <PrivyProviderWrapper>
+        <WagmiProviderWrapper>
           <AuthProvider>
             <ThemeProvider
               attribute="class"
@@ -46,7 +46,7 @@ export default function RootLayout({
               <Toaster />
             </ThemeProvider>
           </AuthProvider>
-        </PrivyProviderWrapper>
+        </WagmiProviderWrapper>
       </body>
     </html>
   );

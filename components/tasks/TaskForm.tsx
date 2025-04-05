@@ -163,7 +163,7 @@ export function TaskForm({
             <TaskPrioritizer
               taskData={{
                 title: watchedTitle,
-                description: watchedDescription,
+                description: watchedDescription || "",
                 deadline: watchedDeadline,
                 currentPriority: watchedPriority,
               }}
@@ -181,7 +181,7 @@ export function TaskForm({
                   <FormLabel>Status</FormLabel>
                   <Select
                     onValueChange={field.onChange}
-                    defaultValue={field.value}
+                    defaultValue={field.value || "todo"}
                   >
                     <FormControl>
                       <SelectTrigger>

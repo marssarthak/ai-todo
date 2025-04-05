@@ -4,53 +4,132 @@ import { useState, useEffect, useMemo, Suspense } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { Container } from "@/components/ui/container";
 import { PageHeader } from "@/components/ui/page-header";
-import { getUserAchievements, Achievement } from "@/services/StreakService";
 import dynamic from "next/dynamic";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { StreakCounter } from "@/components/gamification/StreakCounter";
 import { Spinner } from "@/components/ui/spinner";
-import { StreakAlert } from "@/components/gamification/StreakAlert";
-import { Trophy, Clock, Calendar } from "lucide-react";
+import {
+  Trophy,
+  Clock,
+  Calendar,
+  AlertCircle,
+  Medal,
+  Award,
+  Shield,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMemoizedFn } from "@/hooks/useMemoizedFn";
+import { useWeb3Gamification } from "@/hooks/useWeb3Gamification";
+import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { format, fromUnixTime } from "date-fns";
 
-// Lazily load heavy components
-const StreakCalendar = dynamic(
-  () =>
-    import("@/components/gamification/StreakCalendar").then((mod) => ({
-      default: mod.StreakCalendar,
-    })),
-  {
-    loading: () => (
-      <div className="h-64 bg-muted animate-pulse rounded-md"></div>
-    ),
-    ssr: false,
+// Create achievement card component that uses blockchain data
+const BlockchainAchievementCard = ({
+  achievement,
+  variant = "default",
+}: {
+  achievement: any;
+  variant?: "default" | "compact";
+}) => {
+  const getCategoryIcon = (category: string) => {
+    switch (category) {
+      case "Tasks":
+        return <Trophy className="h-5 w-5 text-amber-500" />;
+      case "Streaks":
+        return <Clock className="h-5 w-5 text-orange-500" />;
+      case "Goals":
+        return <Award className="h-5 w-5 text-yellow-500" />;
+      case "Dedication":
+        return <Shield className="h-5 w-5 text-blue-500" />;
+      default:
+        return <Trophy className="h-5 w-5 text-amber-500" />;
+    }
+  };
+
+  if (variant === "compact") {
+    return (
+      <div className="bg-card rounded-lg border p-3 flex items-start">
+        <div className="bg-primary/10 p-2 rounded-full mr-3">
+          {getCategoryIcon(achievement.category)}
+        </div>
+        <div className="flex-grow">
+          <h4 className="text-sm font-medium">{achievement.name}</h4>
+          <p className="text-xs text-muted-foreground line-clamp-2">
+            {achievement.description}
+          </p>
+          {!achievement.unlocked && (
+            <div className="mt-2">
+              <div className="flex justify-between items-center text-xs mb-1">
+                <span>
+                  {achievement.progress}/{achievement.threshold}
+                </span>
+                <span>
+                  {Math.floor(
+                    (achievement.progress / achievement.threshold) * 100
+                  )}
+                  %
+                </span>
+              </div>
+              <Progress
+                value={(achievement.progress / achievement.threshold) * 100}
+                className="h-1"
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    );
   }
-);
 
-const AchievementCard = dynamic(
-  () =>
-    import("@/components/gamification/AchievementCard").then((mod) => ({
-      default: mod.AchievementCard,
-    })),
-  {
-    loading: () => (
-      <div className="h-48 bg-muted animate-pulse rounded-md"></div>
-    ),
-    ssr: false,
-  }
-);
-
-// Create a simple cache for achievements data
-const achievementsCache = new Map<
-  string,
-  { data: Achievement[]; timestamp: number }
->();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
+  return (
+    <div className="bg-card rounded-lg border overflow-hidden">
+      <div
+        className={`py-4 px-5 ${
+          achievement.unlocked ? "bg-primary/10" : "bg-muted"
+        }`}
+      >
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center">
+            <div className="bg-primary/20 p-2 rounded-full mr-2">
+              {getCategoryIcon(achievement.category)}
+            </div>
+            <h3 className="font-semibold">{achievement.name}</h3>
+          </div>
+          {achievement.unlocked && (
+            <div className="bg-green-500 text-white text-xs py-1 px-2 rounded-full">
+              Unlocked
+            </div>
+          )}
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {achievement.description}
+        </p>
+      </div>
+      <div className="p-4">
+        <div className="flex items-center justify-between text-sm mb-2">
+          <span className="font-medium">Progress</span>
+          <span>
+            {achievement.progress}/{achievement.threshold}
+          </span>
+        </div>
+        <Progress
+          value={(achievement.progress / achievement.threshold) * 100}
+          className={`h-2 ${achievement.unlocked ? "bg-green-500" : ""}`}
+        />
+        {achievement.unlocked && achievement.unlockedAt > 0 && (
+          <div className="mt-3 text-xs text-muted-foreground">
+            Unlocked on{" "}
+            {format(fromUnixTime(achievement.unlockedAt), "MMM d, yyyy")}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 export default function AchievementsPage() {
   const { user } = useAuth();
-  const [achievements, setAchievements] = useState<Achievement[]>([]);
+  const [achievements, setAchievements] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,56 +138,64 @@ export default function AchievementsPage() {
   const [category, setCategory] = useState("all");
   const ITEMS_PER_PAGE = 6;
 
+  // Use web3 gamification hook
+  const {
+    userAddress,
+    getAllUserAchievements,
+    getUserGamificationData,
+    getStreakData,
+    getNextTierRequirements,
+  } = useWeb3Gamification();
+
+  // Store blockchain data
+  const [gamificationData, setGamificationData] = useState<any>(null);
+  const [streakData, setStreakData] = useState<any>(null);
+  const [nextTierInfo, setNextTierInfo] = useState<any>(null);
+
   // Categories for filtering achievements
-  const categories = ["all", "tasks", "streaks", "goals", "dedication"];
+  const categoryMapping: Record<string, string> = {
+    all: "all",
+    tasks: "Tasks",
+    streaks: "Streaks",
+    goals: "Goals",
+    dedication: "Dedication",
+  };
 
-  // Memoized function to fetch achievements with caching
-  const fetchAchievements = useMemoizedFn(async (userId: string) => {
-    // Check if we have cached data that's not expired
-    const cacheKey = userId;
-    const cached = achievementsCache.get(cacheKey);
-
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-      return cached.data;
-    }
-
-    // No valid cache, fetch from service
-    try {
-      const achievementsData = await getUserAchievements(userId);
-
-      // Update cache with new data
-      achievementsCache.set(cacheKey, {
-        data: achievementsData,
-        timestamp: Date.now(),
-      });
-
-      return achievementsData;
-    } catch (err) {
-      console.error("Failed to fetch achievements:", err);
-      throw err;
-    }
-  });
-
+  // Load blockchain achievements data
   useEffect(() => {
-    if (!user?.id) return;
+    async function fetchBlockchainData() {
+      if (!userAddress) {
+        setIsLoading(false);
+        return;
+      }
 
-    const loadAchievements = async () => {
       try {
         setIsLoading(true);
         setError(null);
 
-        const achievementsData = await fetchAchievements(user.id);
+        // Get all blockchain data in parallel
+        const [achievementsData, userData, streak, nextTier] =
+          await Promise.all([
+            getAllUserAchievements(),
+            getUserGamificationData(),
+            getStreakData(),
+            getNextTierRequirements(),
+          ]);
+
         setAchievements(achievementsData);
+        setGamificationData(userData);
+        setStreakData(streak);
+        setNextTierInfo(nextTier);
       } catch (err) {
-        console.error("Failed to fetch achievements:", err);
-        setError("Failed to load achievements");
+        console.error("Failed to fetch blockchain achievements:", err);
+        setError("Failed to load achievements data from blockchain");
       } finally {
         setIsLoading(false);
       }
-    };
+    }
 
-    loadAchievements();
-  }, [user, fetchAchievements]);
+    fetchBlockchainData();
+  }, [userAddress]);
 
   // Memoized filtered achievements to avoid unnecessary recalculations
   const {
@@ -119,14 +206,27 @@ export default function AchievementsPage() {
     totalUnlockedPages,
     totalLockedPages,
   } = useMemo(() => {
+    // Skip if no achievements loaded
+    if (!achievements.length) {
+      return {
+        unlockedAchievements: [],
+        lockedAchievements: [],
+        paginatedUnlockedAchievements: [],
+        paginatedLockedAchievements: [],
+        totalUnlockedPages: 0,
+        totalLockedPages: 0,
+      };
+    }
+
     // Filter by category first
-    const filtered = achievements.filter(
-      (a) => category === "all" || a.category === category
-    );
+    const filtered =
+      category === "all"
+        ? achievements
+        : achievements.filter((a) => a.category === categoryMapping[category]);
 
     // Split into unlocked and locked
-    const unlocked = filtered.filter((a) => a.isUnlocked);
-    const locked = filtered.filter((a) => !a.isUnlocked);
+    const unlocked = filtered.filter((a) => a.unlocked);
+    const locked = filtered.filter((a) => !a.unlocked);
 
     // Calculate pagination
     const totalUnlockedPages = Math.ceil(unlocked.length / ITEMS_PER_PAGE);
@@ -148,23 +248,31 @@ export default function AchievementsPage() {
       totalUnlockedPages,
       totalLockedPages,
     };
-  }, [achievements, category, page, ITEMS_PER_PAGE]);
+  }, [achievements, category, page, ITEMS_PER_PAGE, categoryMapping]);
 
   // Count unlocked achievements by category
-  const getUnlockedCount = useMemoizedFn((category?: string) => {
-    if (!category || category === "all") {
-      return achievements.filter((a) => a.isUnlocked).length;
+  const getUnlockedCount = useMemoizedFn((cat?: string) => {
+    if (!achievements.length) return 0;
+
+    if (!cat || cat === "all") {
+      return achievements.filter((a) => a.unlocked).length;
     }
-    return achievements.filter((a) => a.category === category && a.isUnlocked)
-      .length;
+
+    return achievements.filter(
+      (a) => a.category === categoryMapping[cat] && a.unlocked
+    ).length;
   });
 
   // Get total achievement count by category
-  const getTotalCount = useMemoizedFn((category?: string) => {
-    if (!category || category === "all") {
+  const getTotalCount = useMemoizedFn((cat?: string) => {
+    if (!achievements.length) return 0;
+
+    if (!cat || cat === "all") {
       return achievements.length;
     }
-    return achievements.filter((a) => a.category === category).length;
+
+    return achievements.filter((a) => a.category === categoryMapping[cat])
+      .length;
   });
 
   // Reset page when changing category
@@ -183,6 +291,27 @@ export default function AchievementsPage() {
         />
         <div className="py-20 flex justify-center">
           <Spinner size="lg" />
+        </div>
+      </Container>
+    );
+  }
+
+  // Show wallet connection prompt if not connected
+  if (!userAddress) {
+    return (
+      <Container>
+        <PageHeader
+          title="Achievements"
+          description="Track your productivity milestones"
+        />
+        <Alert className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Connect your wallet to access on-chain achievements and reputation.
+          </AlertDescription>
+        </Alert>
+        <div className="py-8 text-center text-muted-foreground">
+          Your achievement data will appear here once you connect your wallet.
         </div>
       </Container>
     );
@@ -209,21 +338,82 @@ export default function AchievementsPage() {
       />
 
       {/* Streak alert if streak is at risk */}
-      <div className="mb-6">
-        <Suspense fallback={null}>
-          <StreakAlert variant="inline" />
-        </Suspense>
-      </div>
+      {streakData?.streakAtRisk && (
+        <div className="mb-6">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Your streak is at risk! Complete a task today to maintain your
+              streak.
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
 
       {/* Stats summary section */}
       <div className="grid gap-6 md:grid-cols-3 mb-8">
-        <Suspense
-          fallback={
-            <div className="h-32 bg-muted animate-pulse rounded-md"></div>
-          }
-        >
-          <StreakCounter showWarning={false} variant="standard" />
-        </Suspense>
+        {/* Streak Counter Card */}
+        <div className="bg-card rounded-lg border p-6">
+          <div className="flex flex-col items-center justify-center space-y-4">
+            <div className="relative w-24 h-24 flex items-center justify-center">
+              <div className="absolute inset-0">
+                <svg className="w-full h-full" viewBox="0 0 100 100">
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="45"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="10"
+                    strokeLinecap="round"
+                    className="text-muted stroke-muted-foreground/15"
+                  />
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="45"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="10"
+                    strokeLinecap="round"
+                    strokeDasharray="283"
+                    strokeDashoffset={
+                      283 -
+                      (283 * (gamificationData?.streak || 0)) /
+                        Math.max(30, gamificationData?.maxStreak || 1)
+                    }
+                    className="text-primary"
+                    transform="rotate(-90 50 50)"
+                  />
+                </svg>
+              </div>
+              <div className="flex flex-col items-center justify-center">
+                <span className="text-3xl font-bold">
+                  {gamificationData?.streak || 0}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Day Streak
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center space-x-6">
+              <div className="text-center">
+                <div className="text-xs text-muted-foreground mb-1">
+                  Max Streak
+                </div>
+                <div className="text-lg font-semibold">
+                  {gamificationData?.maxStreak || 0}
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-xs text-muted-foreground mb-1">Tier</div>
+                <div className="text-lg font-semibold">
+                  {gamificationData?.tier || "Beginner"}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <div className="bg-card rounded-lg border p-4">
           <div className="flex items-center mb-2">
@@ -277,7 +467,7 @@ export default function AchievementsPage() {
               {unlockedAchievements
                 .sort((a, b) => {
                   if (!a.unlockedAt || !b.unlockedAt) return 0;
-                  return b.unlockedAt.getTime() - a.unlockedAt.getTime();
+                  return b.unlockedAt - a.unlockedAt;
                 })
                 .slice(0, 3)
                 .map((achievement) => (
@@ -290,9 +480,10 @@ export default function AchievementsPage() {
                       <div className="font-medium">{achievement.name}</div>
                       <div className="text-xs text-muted-foreground">
                         {achievement.unlockedAt
-                          ? `Unlocked ${new Date(
-                              achievement.unlockedAt
-                            ).toLocaleDateString()}`
+                          ? `Unlocked ${format(
+                              fromUnixTime(achievement.unlockedAt),
+                              "MMM d, yyyy"
+                            )}`
                           : "Recently unlocked"}
                       </div>
                     </div>
@@ -307,16 +498,34 @@ export default function AchievementsPage() {
         </div>
       </div>
 
-      {/* Calendar section with lazy loading */}
-      <div className="mb-8">
-        <Suspense
-          fallback={
-            <div className="h-64 bg-muted animate-pulse rounded-md"></div>
-          }
-        >
-          <StreakCalendar />
-        </Suspense>
-      </div>
+      {/* Next tier progress */}
+      {nextTierInfo && (
+        <div className="mb-8 bg-card rounded-lg border p-4">
+          <div className="flex items-center mb-3">
+            <Medal className="h-5 w-5 text-primary mr-2" />
+            <h3 className="text-lg font-medium">Reputation Progress</h3>
+          </div>
+          <div className="flex justify-between items-center mb-2">
+            <div className="font-medium">
+              {gamificationData?.tier || "Beginner"}
+            </div>
+            <div className="font-medium">{nextTierInfo.nextTier}</div>
+          </div>
+          <Progress
+            value={
+              ((gamificationData?.taskCount || 0) /
+                ((gamificationData?.taskCount || 0) +
+                  nextTierInfo.tasksNeeded)) *
+              100
+            }
+            className="h-2 mb-2"
+          />
+          <div className="text-sm text-muted-foreground text-center mt-1">
+            {nextTierInfo.tasksNeeded} more tasks needed to reach{" "}
+            {nextTierInfo.nextTier}
+          </div>
+        </div>
+      )}
 
       {/* Achievements section */}
       <div className="mb-4">
@@ -333,14 +542,14 @@ export default function AchievementsPage() {
         onValueChange={handleCategoryChange}
       >
         <TabsList>
-          {categories.map((cat) => (
+          {Object.keys(categoryMapping).map((cat) => (
             <TabsTrigger key={cat} value={cat} className="capitalize">
               {cat} ({getUnlockedCount(cat)}/{getTotalCount(cat)})
             </TabsTrigger>
           ))}
         </TabsList>
 
-        {categories.map((cat) => (
+        {Object.keys(categoryMapping).map((cat) => (
           <TabsContent key={cat} value={cat}>
             <div className="mt-6">
               <h3 className="text-lg font-medium mb-4">
@@ -351,14 +560,10 @@ export default function AchievementsPage() {
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {paginatedUnlockedAchievements.map((achievement) => (
-                      <Suspense
+                      <BlockchainAchievementCard
                         key={achievement.id}
-                        fallback={
-                          <div className="h-48 bg-muted animate-pulse rounded-md"></div>
-                        }
-                      >
-                        <AchievementCard achievement={achievement} />
-                      </Suspense>
+                        achievement={achievement}
+                      />
                     ))}
                   </div>
 
@@ -409,14 +614,10 @@ export default function AchievementsPage() {
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {paginatedLockedAchievements.map((achievement) => (
-                      <Suspense
+                      <BlockchainAchievementCard
                         key={achievement.id}
-                        fallback={
-                          <div className="h-48 bg-muted animate-pulse rounded-md"></div>
-                        }
-                      >
-                        <AchievementCard achievement={achievement} />
-                      </Suspense>
+                        achievement={achievement}
+                      />
                     ))}
                   </div>
 

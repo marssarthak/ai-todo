@@ -23,7 +23,9 @@ import {
   ShieldCheckIcon,
 } from "lucide-react";
 import { VerificationStatus } from "@/components/blockchain/VerificationStatus";
-import { retryVerification, verifyTask } from "@/services/VerificationService";
+import { formatTaskForHashing } from "@/services/VerificationService";
+import { useWeb3Gamification } from "@/hooks/useWeb3Gamification";
+import { useEffect, useState } from "react";
 
 interface TaskCardProps {
   task: Task;
@@ -55,21 +57,34 @@ export function TaskCard({
   const isOverdue =
     task.deadline && isPast(task.deadline) && task.status !== "completed";
 
+  const { verifyTask, isTaskVerified, getUserTasks, getReputationScore } =
+    useWeb3Gamification();
+
+  const [isVerified, setIsVerified] = useState(false);
+  const [verificationLoading, setVerificationLoading] = useState(false);
+
   // Handle verification of a completed task
   const handleVerify = async () => {
     if (task.status === "completed") {
-      await verifyTask(task);
+      await verifyTask(task.id);
     }
   };
 
+  useEffect(() => {
+    setVerificationLoading(true);
+    isTaskVerified(task.id).then((verified) => {
+      setIsVerified(verified as boolean);
+      setVerificationLoading(false);
+    });
+  }, [task.status]);
+
   // Handle retry for failed verification
   const handleRetryVerification = async () => {
-    await retryVerification(task);
+    await handleVerify();
   };
 
   // Determine if we should show verification options
   const showVerification = task.status === "completed";
-  const isVerified = task.metadata?.verified;
   const verificationFailed = task.metadata?.verificationStatus === "failed";
 
   return (
@@ -163,20 +178,23 @@ export function TaskCard({
 
         <div className="flex items-center space-x-1">
           {/* Verification Button */}
-          {showVerification && !isVerified && !isLoading && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 px-2 flex items-center text-xs"
-              onClick={
-                verificationFailed ? handleRetryVerification : handleVerify
-              }
-              disabled={task.metadata?.verificationStatus === "pending"}
-            >
-              <ShieldCheckIcon className="h-3 w-3 mr-1" />
-              {verificationFailed ? "Retry Verify" : "Verify"}
-            </Button>
-          )}
+          {showVerification &&
+            !isVerified &&
+            !isLoading &&
+            !verificationLoading && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 flex items-center text-xs"
+                onClick={
+                  verificationFailed ? handleRetryVerification : handleVerify
+                }
+                disabled={task.metadata?.verificationStatus === "pending"}
+              >
+                <ShieldCheckIcon className="h-3 w-3 mr-1" />
+                {verificationFailed ? "Retry Verify" : "Verify"}
+              </Button>
+            )}
 
           <Button
             variant="ghost"

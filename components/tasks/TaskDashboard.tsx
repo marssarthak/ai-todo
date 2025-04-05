@@ -6,7 +6,7 @@ import {
   CreateTaskData,
   UpdateTaskData,
 } from "@/hooks/useTaskManager";
-import { Task } from "@/types/task";
+import { Task, TaskStatus } from "@/types/task";
 import { TaskList } from "./TaskList";
 import { TaskForm, TaskFormData } from "./TaskForm";
 import { Button } from "@/components/ui/button";
@@ -69,7 +69,7 @@ export function TaskDashboard() {
         title: data.title,
         description: data.description,
         priority: data.priority,
-        status: data.status, // Status can be updated when editing
+        status: data.status as TaskStatus, // Status can be updated when editing
         deadline: data.deadline,
       };
       await editTask(editingTask.id, updateData);
@@ -217,7 +217,7 @@ export function TaskDashboard() {
             </DialogHeader>
             <TaskForm
               onSubmit={handleFormSubmit}
-              initialData={editingTask || undefined} // Pass undefined if creating
+              initialData={editingTask || ({} as Task)} // Pass undefined if creating
               onCancel={handleCloseForm}
               submitButtonText={editingTask ? "Save Changes" : "Create Task"}
             />

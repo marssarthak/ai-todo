@@ -12,12 +12,12 @@ export interface VerificationMetadata {
 export interface Task {
   id: string;
   title: string;
-  description?: string;
+  description?: string | undefined;
   priority: TaskPriority;
   status: TaskStatus;
   createdAt: Date;
   updatedAt: Date;
-  deadline?: Date;
+  deadline?: Date | undefined;
   userId?: string; // Optional for now, will be required later
   metadata?: VerificationMetadata;
 }
