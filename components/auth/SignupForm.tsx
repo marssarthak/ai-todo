@@ -52,7 +52,13 @@ export function SignupForm() {
     setFormError(null);
     setSuccessMessage(null);
 
-    const { error, requiresConfirmation } = await signUp(values);
+    const { error, requiresConfirmation } = await signUp({
+      email: values.email,
+      password: values.password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
 
     if (error) {
       console.error("Signup failed:", error);
