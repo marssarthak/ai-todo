@@ -1,4 +1,4 @@
-export const GamificationManagerABI = [
+const GamificationManagerABI = [
   {
     inputs: [
       {

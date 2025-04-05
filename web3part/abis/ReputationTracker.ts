@@ -1,4 +1,4 @@
-export const ReputationTrackerABI = [
+const ReputationTrackerABI = [
   {
     inputs: [
       {

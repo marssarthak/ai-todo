@@ -1,4 +1,4 @@
-export const AchievementTrackerABI = [
+const AchievementTrackerABI = [
   {
     inputs: [],
     stateMutability: "nonpayable",
