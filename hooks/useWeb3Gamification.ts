@@ -6,7 +6,7 @@ import AchievementTrackerABI from "../web3part/abis/AchievementTracker";
 import TaskVerificationABI from "../web3part/abis/TaskVerification";
 import { keccak256, stringToHex } from "viem";
 import { baseSepolia } from "viem/chains";
-import { useAccount, useSendTransaction, useWriteContract } from "wagmi";
+import { useAccount, useWriteContract } from "wagmi";
 
 export type ReputationTier =
   | "Beginner"
@@ -77,7 +77,6 @@ const mapCategoryToString = (categoryNumber: number): AchievementCategory => {
 };
 
 export function useWeb3Gamification() {
-  const { sendTransactionAsync } = useSendTransaction();
   const account = useAccount();
   const { writeContractAsync } = useWriteContract();
 
@@ -319,7 +318,7 @@ export function useWeb3Gamification() {
       setError(null);
 
       try {
-        const { request } = await publicClient.simulateContract({
+        const hash = await writeContractAsync({
           address: reputationTrackerAddress,
           abi: ReputationTrackerABI,
           functionName: "setDailyGoal",
@@ -327,7 +326,6 @@ export function useWeb3Gamification() {
           account: userAddress,
         });
 
-        const hash = await sendTransactionAsync(request);
         const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
         setIsLoading(false);
@@ -597,7 +595,7 @@ export function useWeb3Gamification() {
       try {
         const targetAddress = address || userAddress;
 
-        const { request } = await publicClient.simulateContract({
+        const hash = await writeContractAsync({
           address: gamificationManagerAddress,
           abi: GamificationManagerABI,
           functionName: "checkAndUpdateAchievements",
@@ -605,7 +603,6 @@ export function useWeb3Gamification() {
           account: userAddress,
         });
 
-        const hash = await sendTransactionAsync(request);
         const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
         setIsLoading(false);
@@ -631,15 +628,13 @@ export function useWeb3Gamification() {
       try {
         const targetAddress = address || userAddress;
 
-        const { request } = await publicClient.simulateContract({
+        const hash = await writeContractAsync({
           address: gamificationManagerAddress,
           abi: GamificationManagerABI,
           functionName: "checkDedicationAchievements",
           args: [targetAddress],
           account: userAddress,
         });
-
-        const hash = await sendTransactionAsync(request);
         const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
         setIsLoading(false);

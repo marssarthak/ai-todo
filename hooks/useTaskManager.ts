@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from "uuid";
 import { Task, TaskPriority, TaskStatus } from "@/types/task";
 import * as TaskService from "@/services/TaskService";
 import { useAuth } from "@/context/AuthContext";
+import { toast } from "sonner";
 
 // Type for the data needed to create a new task
 export type CreateTaskData = Omit<
@@ -125,6 +126,7 @@ export function useTaskManager() {
         setTasks((prevTasks) =>
           prevTasks.map((task) => (task.id === optimisticId ? finalTask : task))
         );
+        toast.success("Task created successfully");
       } catch (err) {
         console.error("Failed to create task:", err);
         const message =
@@ -170,6 +172,7 @@ export function useTaskManager() {
           (prevTasks) =>
             prevTasks.map((task) => (task.id === id ? finalTask : task)) // Replace with server data
         );
+        toast.success("Task updated successfully");
       } catch (err) {
         console.error("Failed to update task:", err);
         const message =
@@ -200,6 +203,8 @@ export function useTaskManager() {
           newSet.delete(id);
           return newSet;
         });
+
+        toast.success("Task deleted successfully");
       } catch (err) {
         console.error("Failed to delete task:", err);
         const message =
@@ -224,6 +229,7 @@ export function useTaskManager() {
 
       // Use the existing editTask logic for optimistic update + API call + rollback
       await editTask(id, updates);
+      toast.success("Task updated successfully");
     },
     [tasks, editTask] // Include editTask dependency
   );

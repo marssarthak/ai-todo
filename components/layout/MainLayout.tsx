@@ -104,6 +104,10 @@ export default function MainLayout({
     },
   ];
 
+  if (pathname.includes("signup") || pathname.includes("login")) {
+    return children;
+  }
+
   return (
     <div className="flex min-h-screen w-full">
       {/* Header - now uses same bg-card color as sidebar */}

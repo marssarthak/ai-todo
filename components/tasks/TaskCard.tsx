@@ -26,6 +26,7 @@ import { VerificationStatus } from "@/components/blockchain/VerificationStatus";
 import { formatTaskForHashing } from "@/services/VerificationService";
 import { useWeb3Gamification } from "@/hooks/useWeb3Gamification";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 interface TaskCardProps {
   task: Task;
@@ -67,6 +68,8 @@ export function TaskCard({
   const handleVerify = async () => {
     if (task.status === "completed") {
       await verifyTask(task.id);
+      toast.success("Task verified successfully");
+      setIsVerified(true);
     }
   };
 
